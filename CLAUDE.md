@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## Project overview
 
-`mcp-feedly` is a Python MCP server for the Feedly API (32 tools, stdio or bearer-protected HTTP, self-renewing access token). Everything is plain Python - no compiled launchers, no console-script executables, no shipped bytecode, no bundled third-party libraries. It is a local development project (future fork of the original Feedly MCP server).
+`mcp-feedly` is a Python MCP server for the Feedly API (32 tools, stdio or bearer-protected HTTP, self-renewing access token). Everything is plain Python - no compiled launchers, no console-script executables, no shipped bytecode, no bundled third-party libraries. Published at github.com/jumpifequal/mcp-feedly; based on c0ffee0wl/feedly-mcp-server (GPL-3.0, upstream history is kept).
 
 ## Layout
 
@@ -30,7 +30,7 @@ distribution/          BUILD OUTPUT: zip + .sha256 + VERIFICATION.json + README.
 ```bash
 python -m venv .venv && .venv\Scripts\python -m pip install -e .   # local support env
 .venv\Scripts\python tests\test_offline.py                         # 12 tests
-.venv\Scripts\python tests\test_scripts.py                         # 15 tests
+.venv\Scripts\python tests\test_scripts.py                         # 18 tests
 .venv\Scripts\python scripts\setup_wizard.py --selftest
 .venv\Scripts\python scripts\build_distribution.py                 # distribution/*.zip (all checks must pass; --skip-clean-install for speed)
 python feedly_mcp_server.py --version
@@ -44,6 +44,7 @@ python feedly_mcp_server.py --version
 - **Dependencies:** declared in `pyproject.toml` and mirrored in `requirements.txt` (a test and a build check compare them); keep `mcp<2`. The build proves sufficiency by installing only `requirements.txt` into a fresh venv.
 - **Client registration:** Claude Desktop and Codex both get the system Python's `pythonw` + the launcher; Codex's block is exactly command/args/startup_timeout_sec/tool_timeout_sec (no `env_vars`). No secrets in client configs.
 - **Secrets:** the *server* never logs or returns token values (its renewal log holds metadata only). The local setup tools (wizard, `set_feedly_token`) may show the values the user types - it is the user's own machine; client configs still hold no tokens. Tests must not touch the real user environment (`FEEDLY_PERSIST_TOKEN=0`, temp log, temp config paths).
+- **Publishing:** `publishme.bat` is the only way the project is pushed to GitHub; it scans for token values and personal data first. Never hard-code personal data (user name, e-mail, local paths) in tracked files; scanner patterns and test fixtures that must contain such text carry a `publish-scan:ignore` marker on the same line.
 - README links must be explicit `[text](url)` links, not bare `<url>` autolinks.
 
 ## Feedly API

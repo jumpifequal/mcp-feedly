@@ -7,6 +7,7 @@
   python scripts/publishme.py --name mcp-feedly --owner jumpifequal
   python scripts/publishme.py --release       # also attach distribution/feedly-mcp-<version>.zip as a GitHub release
   python scripts/publishme.py --existing      # push into a repository that already exists (empty one created on github.com)
+  python scripts/publishme.py --ignore-env-token   # ignore GITHUB_TOKEN/GH_TOKEN and use the `gh auth login` credentials
   python scripts/publishme.py --yes           # skip the confirmation prompts
 
 Run again later to publish updates: once `origin` points at the target repository
@@ -42,8 +43,8 @@ import _common as c  # noqa: E402
 ROOT = c.ROOT
 OWNER = "jumpifequal"
 DEFAULT_NAME = "mcp-feedly"
-DEFAULT_DESCRIPTION = ("MCP server for Feedly: read, search, save, tag and organize your feeds from Claude, "
-                       "Codex and any MCP client (stdio or bearer-protected HTTP, self-renewing token)")
+DEFAULT_DESCRIPTION = ("Feedly for AI agents - an MCP server to read, search, save, tag and organize your feeds from "
+                       "Claude, Codex or any MCP client. Self-renewing tokens, stdio or bearer-protected HTTP, plain Python.")
 TOPICS = ["mcp", "model-context-protocol", "feedly", "rss", "python", "claude", "codex"]
 MUST_BE_IGNORED = [".venv/", "distribution/", "feedly-mcp-token.log", "config.json.bak-20260101"]
 SECRET_LIKE = re.compile(r"[A-Za-z0-9_\-\.]{150,}")
@@ -59,8 +60,20 @@ def say(msg: str = "") -> None:
     print(msg, flush=True)
 
 
+ENV_TOKEN_VARS = ("GITHUB_TOKEN", "GH_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
+IGNORE_ENV_TOKEN = False
+
+
+def _env() -> dict[str, str]:
+    env = dict(os.environ)
+    if IGNORE_ENV_TOKEN:
+        for k in ENV_TOKEN_VARS:
+            env.pop(k, None)
+    return env
+
+
 def run(cmd: list[str], cwd: Path = ROOT, check: bool = False) -> subprocess.CompletedProcess:
-    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=_env())
     if check and r.returncode:
         raise RuntimeError(f"{' '.join(cmd[:3])} failed: {(r.stderr or r.stdout).strip()[-400:]}")
     return r
@@ -72,6 +85,48 @@ def git(*args: str, check: bool = False) -> subprocess.CompletedProcess:
 
 def gh(*args: str, check: bool = False) -> subprocess.CompletedProcess:
     return run(["gh", *args], check=check)
+
+
+def classify_token(token: str) -> str:
+    """Kind of GitHub token from its prefix: fine-grained, classic, oauth or unknown (pure, no network)."""
+    if token.startswith("github_pat_"):
+        return "fine-grained personal access token"
+    if token.startswith("ghp_"):
+        return "classic personal access token"
+    if token.startswith("gho_"):
+        return "OAuth token (gh auth login)"
+    return "unknown token type"
+
+
+def auth_info() -> dict:
+    """How gh is authenticated (the token itself is never printed or stored)."""
+    st = gh("auth", "status")
+    text = st.stdout + st.stderr
+    source = "environment variable" if re.search(r"\((GITHUB_TOKEN|GH_TOKEN)\)", text) else "gh login"
+    kind = classify_token(gh("auth", "token").stdout.strip())
+    scopes: list[str] = []
+    if not kind.startswith("fine-grained"):
+        m = re.search(r"^X-OAuth-Scopes: (.*)$", gh("api", "-i", "user").stdout, re.M | re.I)
+        scopes = [x.strip() for x in m.group(1).split(",") if x.strip()] if m else []
+    return {"source": source, "kind": kind, "scopes": scopes}
+
+
+AUTH_HELP = """
+HOW TO FIX THE GITHUB LOGIN
+  gh is using the {source} ({kind}). {why}
+  Pick ONE of these:
+  A) Sign in with the browser flow (recommended). In a command window:
+         set GITHUB_TOKEN=
+         gh auth login --web --git-protocol https
+     then run:  publishme.bat --ignore-env-token
+     (--ignore-env-token makes the script use that login instead of the GITHUB_TOKEN variable)
+  B) Create the EMPTY repository yourself at https://github.com/new
+     (name {name}, no README / .gitignore / licence) and run:  publishme.bat --existing
+     Your token must then be allowed to push to it (fine-grained token: add the
+     repository, permission "Contents: Read and write").
+  C) Replace the token with a classic one that has the 'repo' scope
+     (https://github.com/settings/tokens).
+"""
 
 
 def read_version() -> str:
@@ -172,11 +227,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--existing", action="store_true", help="push into an existing (empty) repository")
     ap.add_argument("--release", action="store_true", help="also create a GitHub release with the distribution zip")
     ap.add_argument("--skip-tests", action="store_true", help="do not run the test suites first")
+    ap.add_argument("--ignore-env-token", action="store_true",
+                    help="ignore GITHUB_TOKEN / GH_TOKEN and use the credentials stored by `gh auth login`")
     ap.add_argument("--branch", default="main")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--dry-run", action="store_true", help="checks and plan only; change nothing")
     args = ap.parse_args(argv)
 
+    global IGNORE_ENV_TOKEN
+    IGNORE_ENV_TOKEN = args.ignore_env_token
     repo = f"{args.owner}/{args.name}"
     url = f"https://github.com/{repo}"
     version = read_version()
@@ -204,7 +263,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if login.lower() != args.owner.lower():
         problems.append(f"gh is signed in as '{login}', not '{args.owner}'")
-    say(f"[ok] GitHub CLI signed in as {login}")
+    auth = auth_info()
+    say(f"[ok] GitHub CLI signed in as {login} via {auth['source']} ({auth['kind']}"
+        + (f", scopes: {', '.join(auth['scopes'])}" if auth["scopes"] else "") + ")")
+    need_create = False  # decided below once we know whether the repository exists
 
     origin = git("remote", "get-url", "origin").stdout.strip()
     update_mode = origin.rstrip("/").removesuffix(".git").lower() == url.lower()
@@ -217,6 +279,27 @@ def main(argv: list[str] | None = None) -> int:
         problems.append(f"--existing was given but {repo} does not exist")
     else:
         say(f"[ok] {repo} " + ("exists (will push into it)" if exists else "does not exist yet (will be created)"))
+        need_create = not exists
+    if need_create:
+        why = ""
+        if auth["kind"].startswith("fine-grained"):
+            why = "Fine-grained tokens cannot create repositories on a personal account."
+        elif auth["scopes"] and "repo" not in auth["scopes"] and "public_repo" not in auth["scopes"]:
+            why = "The token lacks the 'repo' scope needed to create repositories."
+        if why and auth["source"] == "environment variable" and not IGNORE_ENV_TOKEN:
+            # the GITHUB_TOKEN variable cannot do it: try the login stored by `gh auth login` instead
+            IGNORE_ENV_TOKEN = True
+            alt_login = gh("api", "user", "--jq", ".login").stdout.strip()
+            alt = auth_info()
+            if alt_login.lower() == args.owner.lower() and alt["source"] == "gh login" and "repo" in alt["scopes"]:
+                say(f"[note] the GITHUB_TOKEN variable cannot create repositories; using your stored gh login instead "
+                    f"({alt['kind']}, scopes: {', '.join(alt['scopes'])})")
+                auth, why = alt, ""
+            else:
+                IGNORE_ENV_TOKEN = False
+        if why:
+            problems.append("cannot create the repository with this login: " + why)
+            say(AUTH_HELP.format(source=auth["source"], kind=auth["kind"], why=why, name=args.name))
 
     branch = git("branch", "--show-current").stdout.strip() or "(detached)"
     files = candidate_files()
@@ -275,7 +358,11 @@ def main(argv: list[str] | None = None) -> int:
     say(f"  repository : {url}" + (f"  ({visibility})" if visibility and not (update_mode or exists) else ""))
     say(f"  branch     : {branch} -> {args.branch}")
     say(f"  history    : kept ({git('rev-list', '--count', 'HEAD').stdout.strip()} existing commits incl. the upstream authors')")
-    say(f"  commit     : {dirty} changed/untracked entries -> 1 new commit by {author_name} <{author_email}>")
+    if dirty:
+        say(f"  commit     : {dirty} changed/untracked entries -> 1 new commit by {author_name} <{author_email}>")
+    else:
+        last = git("log", "-1", "--format=%h %s").stdout.strip()
+        say(f"  commit     : working tree clean, nothing new to commit (latest: {last})")
     if not update_mode and origin:
         say(f"  remotes    : '{origin}' is renamed 'upstream'; '{url}.git' becomes 'origin'")
     say(f"  release    : " + (f"v{version} with the distribution zip" if args.release else "no"))
@@ -349,6 +436,9 @@ def main(argv: list[str] | None = None) -> int:
             say(f"[done] release v{version} created with the distribution zip")
     except Exception as e:  # noqa: BLE001
         say(f"\nFAILED: {e}")
+        if "not accessible by personal access token" in str(e) or "createRepository" in str(e):
+            say(AUTH_HELP.format(source=auth["source"], kind=auth["kind"],
+                                 why="GitHub refused to create the repository with this token.", name=args.name))
         if renamed and git("remote", "get-url", "origin").returncode != 0:
             git("remote", "rename", "upstream", "origin")
             say("(the remote 'origin' was restored)")

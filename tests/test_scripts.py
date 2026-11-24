@@ -135,6 +135,24 @@ def test_publish_scan_finds_secrets_and_personal_data_without_echoing_them():
     assert secret not in joined                                    # values are never echoed
 
 
+def test_publish_token_classification_and_env_token_isolation():
+    import publishme as pm
+    assert pm.classify_token("github_pat_11ABC").startswith("fine-grained")
+    assert pm.classify_token("ghp_abc").startswith("classic")
+    assert pm.classify_token("gho_abc").startswith("OAuth")
+    assert pm.classify_token("whatever").startswith("unknown")
+    os.environ["GITHUB_TOKEN"] = "dummy-env-token"
+    try:
+        pm.IGNORE_ENV_TOKEN = False
+        assert pm._env().get("GITHUB_TOKEN") == "dummy-env-token"
+        pm.IGNORE_ENV_TOKEN = True
+        assert "GITHUB_TOKEN" not in pm._env() and "GH_TOKEN" not in pm._env()
+    finally:
+        pm.IGNORE_ENV_TOKEN = False
+        os.environ.pop("GITHUB_TOKEN", None)
+    assert "--ignore-env-token" in pm.AUTH_HELP and "--existing" in pm.AUTH_HELP
+
+
 def test_publish_ignore_rules_and_changelog_section():
     import publishme as pm
     import feedly_mcp

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `manifest.json` in every distribution: version, build time, entry point, requirements, environment variables, the full tool list and the SHA-256 of every file.
 - Distributable zip `distribution/feedly-mcp-<version>.zip` (about 70 KB, pure Python, any Python >= 3.10) with `.sha256`, `VERIFICATION.json` and install notes, produced by `scripts/build_distribution.py`. It bundles **no third-party libraries**: `requirements.txt` lists the dependencies. The build verifies the zip, including a clean-room check that installs only `requirements.txt` into a fresh virtual environment. The package is assembled in a temporary staging folder; no release folder is kept.
 - `scripts/install_dependencies.py` (`--check`, `--python PATH`), `scripts/setup_claude.py` and `scripts/setup_codex.py` (register / `--remove` / `--test`), `scripts/build_distribution.py`, and a committed `requirements.txt` (a test keeps it equal to `pyproject.toml`).
+- `scripts/publishme.py` and `publishme.bat`: publish the project as a new GitHub repository (read-only preflight with secret / personal-data scan and test run, plan, explicit confirmation, `--dry-run`, `--release`, `--existing`). It retargets `origin` to the new repository and keeps the upstream as `upstream`, publishes with the GitHub no-reply address, and detects a `GITHUB_TOKEN` that cannot create repositories, switching to the stored `gh auth login` credentials.
 - Project logo (`assets/logo.svg`).
 
 ### Changed

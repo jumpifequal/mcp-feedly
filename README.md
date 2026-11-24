@@ -12,7 +12,7 @@ An MCP (Model Context Protocol) server that gives Claude, Codex and any MCP clie
 - **Small distributable zip** (about 70 KB, pure Python, no bundled libraries) with a manifest, checksum and verification report; dependencies install with one command
 - **Setup wizard** (GUI) and console setup scripts
 
-> This is a local development project (it will become a fork of the original Feedly MCP server later). Nothing here needs, or documents, a download from GitHub.
+> Based on the original [feedly-mcp-server](https://github.com/c0ffee0wl/feedly-mcp-server) by c0ffee0wl (GPL-3.0), extended and restructured. Published at [github.com/jumpifequal/mcp-feedly](https://github.com/jumpifequal/mcp-feedly).
 
 ---
 
@@ -55,12 +55,14 @@ mcp-feedly/
 │   ├── set_feedly_token.py   #   save the Feedly tokens (interactive / --silent)
 │   ├── setup_claude.py       #   register in Claude Desktop
 │   ├── setup_codex.py        #   register in Codex
+│   ├── publishme.py          #   publish the project to GitHub (new repository)
 │   └── build_distribution.py #   build the distributable zip in distribution/
 ├── setup_wizard.bat          # .bat files only call the matching scripts/*.py
 ├── install_dependencies.bat
 ├── set_feedly_token.bat
 ├── setup_claude.bat
 ├── setup_codex.bat
+├── publishme.bat
 ├── build_distribution.bat
 ├── assets/logo.svg
 ├── tests/                    # offline test suites
@@ -210,6 +212,7 @@ Every script is Python in `scripts/`; each `.bat` in the project root only locat
 | `setup_claude.bat` | `scripts/setup_claude.py` | Register / `--remove` the server in Claude Desktop |
 | `setup_codex.bat` | `scripts/setup_codex.py` | Register / `--remove` the server in Codex |
 | `build_distribution.bat` | `scripts/build_distribution.py` | Build the distributable zip in `distribution/` |
+| `publishme.bat` | `scripts/publishme.py` | Publish the project as a new GitHub repository (checks, plan, confirmation) |
 
 ### 4.1 The GUI wizard
 
@@ -261,6 +264,35 @@ python scripts/setup_codex.py                     # same for Codex
 python scripts/set_feedly_token.py                # prompts (visible input), validates, saves
 python scripts/set_feedly_token.py --silent       # used by the server after a renewal (reads FEEDLY_NEW_* from the environment)
 ```
+
+### 4.4 Publishing to GitHub
+
+`publishme.bat` publishes the project as a **new repository** under your GitHub account (default `jumpifequal/mcp-feedly`):
+
+```bash
+publishme.bat --dry-run      # checks and plan only, changes nothing
+publishme.bat                # asks public/private (default private), shows the plan, asks you to type "publish"
+publishme.bat --release      # also attaches distribution/feedly-mcp-<version>.zip as a GitHub release
+```
+
+Before anything is sent it checks (read-only): git and the GitHub CLI (`gh`) are signed in as the owner, the repository does not exist yet, **no token value or token-like string** and no personal/local data (user name, company address, local paths) is in the files to commit, the ignore rules (`.venv`, `distribution`, logs, backups) work, and the test suites pass. Then it shows the plan and waits for you to type `publish`.
+
+What it does:
+
+1. Renames the current `origin` (the upstream project this was cloned from) to `upstream`, so nothing can be pushed there.
+2. Commits your work. The history is kept (it includes the upstream authors' commits, which preserves the attribution the GPL-3.0 requires). The new commit uses your GitHub no-reply address, so your private e-mail is not published (`--email keep` uses your git identity).
+3. Creates the repository, pushes `main` and sets the topics. Run it again later to publish updates (it then only commits and pushes).
+
+| Option | Meaning |
+|--------|---------|
+| `--public` / `--private` | visibility (asked if omitted; default private) |
+| `--name`, `--owner` | repository name / account (defaults `mcp-feedly`, `jumpifequal`) |
+| `--release` | also create a GitHub release `v<version>` with the distribution zip and checksum (run `build_distribution.bat` first) |
+| `--existing` | push into an empty repository you created yourself on github.com |
+| `--ignore-env-token` | ignore the `GITHUB_TOKEN` / `GH_TOKEN` variables and use the login stored by `gh auth login` |
+| `--skip-tests`, `--yes`, `--dry-run` | skip the tests / skip confirmations / change nothing |
+
+**Login note.** A fine-grained personal access token in the `GITHUB_TOKEN` variable cannot create repositories on a personal account ("Resource not accessible by personal access token"). The script detects this up front and automatically uses your stored `gh auth login` credentials instead (it must have the `repo` scope). If you have none, run `set GITHUB_TOKEN=` and `gh auth login --web` once, or create the empty repository on github.com/new and run `publishme.bat --existing`.
 
 ---
 
@@ -531,7 +563,7 @@ Command line: `python feedly_mcp_server.py [--version] [--transport stdio|http] 
 
 ```bash
 .venv\Scripts\python tests\test_offline.py     # 12 tests: client, renewal, persistence, tools, HTTP auth
-.venv\Scripts\python tests\test_scripts.py     # 15 tests: setup scripts, Codex/Claude entries, launchers, version, requirements, build helpers
+.venv\Scripts\python tests\test_scripts.py     # 18 tests: setup scripts, Codex/Claude entries, launchers, version, requirements, build helpers
 .venv\Scripts\python scripts\setup_wizard.py --selftest    # the wizard UI builds headlessly
 ```
 
