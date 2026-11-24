@@ -57,7 +57,6 @@ mcp-feedly/
 │   ├── setup_codex.py        #   register in Codex
 │   └── build_distribution.py #   build the distributable zip in distribution/
 ├── assets/logo.svg
-├── tests/                    # offline test suites
 ├── CHANGELOG.md  README.md  LICENSE  pyproject.toml
 │
 ├── .venv/                    # LOCAL support environment only (dev and build); never shipped
