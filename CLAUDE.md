@@ -1,56 +1,53 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Project Overview
+## Project overview
 
-This is a Python MCP (Model Context Protocol) server that enables Claude to interact with the Feedly API. It provides 12 tools for reading feeds, fetching articles, and marking items as read.
+`mcp-feedly` is a Python MCP server for the Feedly API (32 tools, stdio or bearer-protected HTTP, self-renewing access token). Everything is plain Python - no compiled launchers, no console-script executables, no shipped bytecode, no bundled third-party libraries. It is a local development project (future fork of the original Feedly MCP server).
 
-## Development Commands
+## Layout
+
+```
+feedly_mcp_server.py   launcher: python feedly_mcp_server.py [--version] [--transport stdio|http]
+feedly_mcp/            the MCP package
+  server.py            FastMCP app, all tools, status tool, stdio/HTTP entry point, bearer middleware
+  client.py            FeedlyClient (async httpx): error mapping, 401 -> renew -> retry
+  auth.py              TokenManager: renewal via FEEDLY_REFRESH_TOKEN, registry fallback for env vars
+  persist.py           saves renewed tokens (runs scripts/set_feedly_token.py --silent) + metadata-only log
+  models.py            Pydantic v2 input models
+  __init__.py          __version__ = single source of the version
+requirements.txt       runtime dependencies (must equal [project].dependencies in pyproject.toml)
+scripts/               ALL support scripts, Python only (shared helpers in _common.py)
+*.bat                  thin launchers that only call scripts/*.py
+assets/logo.svg  tests/  CHANGELOG.md
+.venv/                 LOCAL support environment (dev/build only, never shipped)
+distribution/          BUILD OUTPUT: zip + .sha256 + VERIFICATION.json + README.txt (no release folder is kept)
+```
+
+## Commands
 
 ```bash
-# Install in development mode
-uv tool install -e .
-
-# Syntax check
-uv run python -m py_compile src/feedly_mcp/server.py
-
-# Run the server
-feedly-mcp
-
-# Test with MCP Inspector
-npx @modelcontextprotocol/inspector
+python -m venv .venv && .venv\Scripts\python -m pip install -e .   # local support env
+.venv\Scripts\python tests\test_offline.py                         # 12 tests
+.venv\Scripts\python tests\test_scripts.py                         # 15 tests
+.venv\Scripts\python scripts\setup_wizard.py --selftest
+.venv\Scripts\python scripts\build_distribution.py                 # distribution/*.zip (all checks must pass; --skip-clean-install for speed)
+python feedly_mcp_server.py --version
 ```
 
-## Architecture
+## Rules to keep
 
-```
-src/feedly_mcp/
-├── server.py      # FastMCP server - all 12 tools defined here with @mcp.tool decorators
-├── client.py      # FeedlyClient - async httpx client for Feedly API
-├── models.py      # Pydantic v2 input models for tool parameters
-└── constants.py   # API URL, limits, User-Agent
-```
-
-**Key patterns:**
-- Tools use Pydantic models for input validation (e.g., `GetStreamContentsInput`)
-- All API calls go through `FeedlyClient._request()` which handles auth and error mapping
-- Response formatting supports both markdown and JSON via `ResponseFormat` enum
-- Tool annotations specify `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`
+- **Plain Python only (no executables, no bytecode, no bundled libraries):** do not add `[project.scripts]` entries, compiled launchers or a `lib/` folder; the launcher sets `sys.dont_write_bytecode`; the distribution must contain no `.pyc`/`__pycache__` and no third-party packages.
+- **Scripts are Python in `scripts/`**; `.bat` files contain no logic beyond locating Python and calling the script.
+- **Version:** change `__version__` in `feedly_mcp/__init__.py` only, and add a `## [x.y.z]` section to `CHANGELOG.md` (a test checks both).
+- **Dependencies:** declared in `pyproject.toml` and mirrored in `requirements.txt` (a test and a build check compare them); keep `mcp<2`. The build proves sufficiency by installing only `requirements.txt` into a fresh venv.
+- **Client registration:** Claude Desktop and Codex both get the system Python's `pythonw` + the launcher; Codex's block is exactly command/args/startup_timeout_sec/tool_timeout_sec (no `env_vars`). No secrets in client configs.
+- **Secrets:** the *server* never logs or returns token values (its renewal log holds metadata only). The local setup tools (wizard, `set_feedly_token`) may show the values the user types - it is the user's own machine; client configs still hold no tokens. Tests must not touch the real user environment (`FEEDLY_PERSIST_TOKEN=0`, temp log, temp config paths).
+- README links must be explicit `[text](url)` links, not bare `<url>` autolinks.
 
 ## Feedly API
 
-**Base URL:** `https://cloud.feedly.com/v3`
+Base URL `https://cloud.feedly.com/v3`; Bearer access token from `FEEDLY_ACCESS_TOKEN`; renewal `POST /auth/token` with `FEEDLY_REFRESH_TOKEN` (client `feedlydev`). Token page: https://feedly.com/v3/auth/dev
 
-**Authentication:** Bearer token via `FEEDLY_ACCESS_TOKEN` environment variable
-
-**Stream ID formats:**
-- Feed: `feed/https://example.com/rss`
-- Category: `user/{userId}/category/{label}`
-- Tag: `user/{userId}/tag/global.saved`
-
-## Tools (12 total)
-
-**Read-only (8):** `feedly_get_profile`, `feedly_get_subscriptions`, `feedly_get_categories`, `feedly_get_tags`, `feedly_get_unread_counts`, `feedly_get_stream_contents`, `feedly_get_entry`, `feedly_get_entries`
-
-**Write (4):** `feedly_mark_as_read`, `feedly_mark_feed_as_read`, `feedly_mark_category_as_read`, `feedly_keep_unread`
+Stream IDs: `feed/URL`, `user/{userId}/category/{label}`, `user/{userId}/tag/{label}`, `user/{userId}/category/global.all`, `user/{userId}/tag/global.saved`.
