@@ -57,10 +57,9 @@ mcp-feedly/
 │   ├── setup_codex.py        #   register in Codex
 │   └── build_distribution.py #   build the distributable zip in distribution/
 ├── assets/logo.svg
-├── CHANGELOG.md  README.md  LICENSE  pyproject.toml
-│
-├── .venv/                    # LOCAL support environment only (dev and build); never shipped
-└── distribution/             # BUILD OUTPUT: the distributable zip + .sha256 + VERIFICATION.json + README.txt
+├── CHANGELOG.md  README.md
+├── LICENSE
+└── pyproject.toml
 ```
 
 Rules of the layout:
