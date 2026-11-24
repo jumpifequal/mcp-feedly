@@ -7,6 +7,9 @@ distribution/
 # runtime artefacts
 feedly-mcp-token.log
 *.bak-*
+scripts/publishme.py
+CLAUDE.md
+*.bat
 
 # python
 __pycache__/

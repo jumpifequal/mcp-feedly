@@ -13,12 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `manifest.json` in every distribution: version, build time, entry point, requirements, environment variables, the full tool list and the SHA-256 of every file.
 - Distributable zip `distribution/feedly-mcp-<version>.zip` (about 70 KB, pure Python, any Python >= 3.10) with `.sha256`, `VERIFICATION.json` and install notes, produced by `scripts/build_distribution.py`. It bundles **no third-party libraries**: `requirements.txt` lists the dependencies. The build verifies the zip, including a clean-room check that installs only `requirements.txt` into a fresh virtual environment. The package is assembled in a temporary staging folder; no release folder is kept.
 - `scripts/install_dependencies.py` (`--check`, `--python PATH`), `scripts/setup_claude.py` and `scripts/setup_codex.py` (register / `--remove` / `--test`), `scripts/build_distribution.py`, and a committed `requirements.txt` (a test keeps it equal to `pyproject.toml`).
-- `scripts/publishme.py` and `publishme.bat`: publish the project as a new GitHub repository (read-only preflight with secret / personal-data scan and test run, plan, explicit confirmation, `--dry-run`, `--release`, `--existing`). It retargets `origin` to the new repository and keeps the upstream as `upstream`, publishes with the GitHub no-reply address, and detects a `GITHUB_TOKEN` that cannot create repositories, switching to the stored `gh auth login` credentials.
 - Project logo (`assets/logo.svg`).
 
 ### Changed
 
-- New layout: the MCP package (`feedly_mcp/`) and launcher (`feedly_mcp_server.py`) live in the project root; every support script is Python under `scripts/`; the `.bat` files are thin launchers that call them. `.venv` is only a local support environment.
+- New layout: the MCP package (`feedly_mcp/`) and launcher (`feedly_mcp_server.py`) live in the project root; every support script is Python under `scripts/`. `.venv` is only a local support environment.
 - Claude Desktop and Codex are both registered with the system Python's windowless interpreter (`pythonw`) plus the launcher. The Codex block is exactly `command`, `args`, `startup_timeout_sec = 30`, `tool_timeout_sec = 120`: no `env_vars`, because the server reads the tokens from the user environment itself.
 - `set_feedly_token.py` replaces the batch logic (hidden-input prompts, read-only validation, `--silent` mode used by the server after a token renewal).
 - The setup wizard registers Claude Desktop (`claude_desktop_config.json`) and Codex, installs the dependencies in step 1, and works from both the source tree and an extracted distribution.

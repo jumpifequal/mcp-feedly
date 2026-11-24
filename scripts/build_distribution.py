@@ -50,9 +50,10 @@ STAGE = ROOT / "distribution" / ".staging"  # replaced by a temp folder in main(
 MANIFEST_VERSION = 2
 
 PACKAGE_DIRS = ["feedly_mcp"]
-ROOT_FILES = ["feedly_mcp_server.py", "README.md", "LICENSE", "CHANGELOG.md",
-              "set_feedly_token.bat", "setup_wizard.bat", "setup_claude.bat", "setup_codex.bat",
-              "install_dependencies.bat", "requirements.txt"]
+ROOT_FILES = ["feedly_mcp_server.py", "README.md", "LICENSE", "CHANGELOG.md", "requirements.txt"]
+# local convenience launchers (git-ignored): shipped when present, never required
+OPTIONAL_ROOT_FILES = ["set_feedly_token.bat", "setup_wizard.bat", "setup_claude.bat", "setup_codex.bat",
+                       "install_dependencies.bat"]
 SCRIPT_FILES = ["_common.py", "set_feedly_token.py", "setup_wizard.py", "setup_claude.py",
                 "setup_codex.py", "install_dependencies.py"]
 ASSET_FILES = ["logo.svg"]
@@ -123,6 +124,9 @@ def assemble() -> None:
         shutil.copytree(ROOT / d, STAGE / d, ignore=IGNORE)
     for f in ROOT_FILES:
         shutil.copy2(ROOT / f, STAGE / f)
+    for f in OPTIONAL_ROOT_FILES:
+        if (ROOT / f).exists():
+            shutil.copy2(ROOT / f, STAGE / f)
     (STAGE / "scripts").mkdir()
     for f in SCRIPT_FILES:
         shutil.copy2(ROOT / "scripts" / f, STAGE / "scripts" / f)
@@ -285,12 +289,13 @@ Installation
 1. Extract the whole ZIP to a stable folder (the path is stored in the client
    configuration, so do not move it afterwards).
 2. Install Python {minpy}+ if you do not have it.
-3. Double-click setup_wizard.bat (GUI). Its first step installs the
+3. Run  python scripts/setup_wizard.py  (GUI). Its first step installs the
    dependencies; the console equivalents are:
-     install_dependencies.bat   pip install -r requirements.txt
-     set_feedly_token.bat       save your Feedly access/refresh tokens
-     setup_claude.bat           register in Claude Desktop
-     setup_codex.bat            register in Codex
+     python scripts/install_dependencies.py   pip install -r requirements.txt
+     python scripts/set_feedly_token.py       save your Feedly access/refresh tokens
+     python scripts/setup_claude.py           register in Claude Desktop
+     python scripts/setup_codex.py            register in Codex
+   (.bat files, when present in the zip, are shortcuts for these commands.)
 4. Fully quit and restart the client.
 
 Feedly tokens: sign in to Feedly and open https://feedly.com/v3/auth/dev
@@ -300,7 +305,7 @@ saves the new one in your user environment (see feedly-mcp-token.log).
 Contents
 - feedly_mcp_server.py   launcher (stdio by default, --transport http)
 - feedly_mcp/            the MCP server (Python source)
-- scripts/               setup scripts (all Python); *.bat files just call them
+- scripts/               setup scripts (all Python)
 - requirements.txt       the Python dependencies
 - manifest.json          version, tools, requirements and SHA-256 of every file
 - README.md              full documentation

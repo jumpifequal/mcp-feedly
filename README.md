@@ -55,15 +55,7 @@ mcp-feedly/
 │   ├── set_feedly_token.py   #   save the Feedly tokens (interactive / --silent)
 │   ├── setup_claude.py       #   register in Claude Desktop
 │   ├── setup_codex.py        #   register in Codex
-│   ├── publishme.py          #   publish the project to GitHub (new repository)
 │   └── build_distribution.py #   build the distributable zip in distribution/
-├── setup_wizard.bat          # .bat files only call the matching scripts/*.py
-├── install_dependencies.bat
-├── set_feedly_token.bat
-├── setup_claude.bat
-├── setup_codex.bat
-├── publishme.bat
-├── build_distribution.bat
 ├── assets/logo.svg
 ├── tests/                    # offline test suites
 ├── CHANGELOG.md  README.md  LICENSE  pyproject.toml
@@ -77,7 +69,7 @@ Rules of the layout:
 - **`.venv`** holds only local support things (the interpreter environment used to develop, test and build). The product does not depend on it: the setup scripts register the system Python.
 - **`distribution/`** holds the distributable zip: only this project's own Python files (about 70 KB). **No third-party library is bundled** - `requirements.txt` lists the four dependencies and is installed once on the target machine.
 - **There is no release folder and no `lib/` folder.** The build assembles the package in a temporary staging folder, verifies it, zips it and deletes the staging folder.
-- **Scripts are Python**, live in `scripts/`; the `.bat` files are one-screen launchers that call them.
+- **Scripts are Python** and live in `scripts/`; run them with `python scripts/<name>.py`.
 - **The MCP is Python in the project root** (`feedly_mcp_server.py` + `feedly_mcp/`).
 
 ---
@@ -92,7 +84,7 @@ python -m venv .venv
 python scripts/setup_wizard.py
 ```
 
-(or simply double-click `setup_wizard.bat` - step 1 of the wizard can create `.venv` for you).
+(step 1 of the wizard creates `.venv` for you if it is missing).
 
 Run the server directly:
 
@@ -121,8 +113,8 @@ Steps:
 2. Open the token page: [https://feedly.com/v3/auth/dev](https://feedly.com/v3/auth/dev)
 3. Copy the **access token** and the **refresh token** shown there.
 4. Store them using one of these methods:
-   - run `setup_wizard.bat` (recommended), or
-   - run `set_feedly_token.bat` (prompts for both; what you type is visible), or
+   - run `python scripts/setup_wizard.py` (recommended), or
+   - run `python scripts/set_feedly_token.py` (prompts for both; what you type is visible), or
    - set the user environment variables yourself: `FEEDLY_ACCESS_TOKEN` and `FEEDLY_REFRESH_TOKEN`.
 5. Fully quit and restart your client (Claude Desktop / Codex / terminal) so it picks up the changes.
 
@@ -192,7 +184,7 @@ Override the location with `FEEDLY_MCP_LOG`; disable saving to the environment w
 
 ### 3.5 When the refresh token itself stops working
 
-You will see `Token refresh failed (HTTP ...)` and a `TOKEN_REFRESH_FAILED` log line. Generate a new pair at [https://feedly.com/v3/auth/dev](https://feedly.com/v3/auth/dev) and store it with the wizard or `set_feedly_token.bat`.
+You will see `Token refresh failed (HTTP ...)` and a `TOKEN_REFRESH_FAILED` log line. Generate a new pair at [https://feedly.com/v3/auth/dev](https://feedly.com/v3/auth/dev) and store it with the wizard or `python scripts/set_feedly_token.py`.
 
 ### 3.6 Notes on "already running" programs
 
@@ -202,17 +194,16 @@ Windows only gives user-environment changes to programs started *afterwards*. Th
 
 ## 4. Setup wizard and support scripts
 
-Every script is Python in `scripts/`; each `.bat` in the project root only locates Python (the local `.venv` first, then `python` on PATH) and calls the matching script, passing its arguments through.
+Every support script is Python in `scripts/` and runs with `python scripts/<name>.py` (the local `.venv` interpreter or any Python 3.10+).
 
-| Launcher | Script | What it does |
-|----------|--------|--------------|
-| `setup_wizard.bat` | `scripts/setup_wizard.py` | GUI wizard: checks, dependencies, tokens, registration, live test |
-| `install_dependencies.bat` | `scripts/install_dependencies.py` | Install `requirements.txt` (`--check` only verifies, `--python PATH` targets an interpreter) |
-| `set_feedly_token.bat` | `scripts/set_feedly_token.py` | Save the Feedly tokens as user environment variables |
-| `setup_claude.bat` | `scripts/setup_claude.py` | Register / `--remove` the server in Claude Desktop |
-| `setup_codex.bat` | `scripts/setup_codex.py` | Register / `--remove` the server in Codex |
-| `build_distribution.bat` | `scripts/build_distribution.py` | Build the distributable zip in `distribution/` |
-| `publishme.bat` | `scripts/publishme.py` | Publish the project as a new GitHub repository (checks, plan, confirmation) |
+| Script | What it does |
+|--------|--------------|
+| `scripts/setup_wizard.py` | GUI wizard: checks, dependencies, tokens, registration, live test |
+| `scripts/install_dependencies.py` | Install `requirements.txt` (`--check` only verifies, `--python PATH` targets an interpreter) |
+| `scripts/set_feedly_token.py` | Save the Feedly tokens as user environment variables |
+| `scripts/setup_claude.py` | Register / `--remove` the server in Claude Desktop |
+| `scripts/setup_codex.py` | Register / `--remove` the server in Codex |
+| `scripts/build_distribution.py` | Build the distributable zip in `distribution/` |
 
 ### 4.1 The GUI wizard
 
@@ -265,40 +256,11 @@ python scripts/set_feedly_token.py                # prompts (visible input), val
 python scripts/set_feedly_token.py --silent       # used by the server after a renewal (reads FEEDLY_NEW_* from the environment)
 ```
 
-### 4.4 Publishing to GitHub
-
-`publishme.bat` publishes the project as a **new repository** under your GitHub account (default `jumpifequal/mcp-feedly`):
-
-```bash
-publishme.bat --dry-run      # checks and plan only, changes nothing
-publishme.bat                # asks public/private (default private), shows the plan, asks you to type "publish"
-publishme.bat --release      # also attaches distribution/feedly-mcp-<version>.zip as a GitHub release
-```
-
-Before anything is sent it checks (read-only): git and the GitHub CLI (`gh`) are signed in as the owner, the repository does not exist yet, **no token value or token-like string** and no personal/local data (user name, company address, local paths) is in the files to commit, the ignore rules (`.venv`, `distribution`, logs, backups) work, and the test suites pass. Then it shows the plan and waits for you to type `publish`.
-
-What it does:
-
-1. Renames the current `origin` (the upstream project this was cloned from) to `upstream`, so nothing can be pushed there.
-2. Commits your work. The history is kept (it includes the upstream authors' commits, which preserves the attribution the GPL-3.0 requires). The new commit uses your GitHub no-reply address, so your private e-mail is not published (`--email keep` uses your git identity).
-3. Creates the repository, pushes `main` and sets the topics. Run it again later to publish updates (it then only commits and pushes).
-
-| Option | Meaning |
-|--------|---------|
-| `--public` / `--private` | visibility (asked if omitted; default private) |
-| `--name`, `--owner` | repository name / account (defaults `mcp-feedly`, `jumpifequal`) |
-| `--release` | also create a GitHub release `v<version>` with the distribution zip and checksum (run `build_distribution.bat` first) |
-| `--existing` | push into an empty repository you created yourself on github.com |
-| `--ignore-env-token` | ignore the `GITHUB_TOKEN` / `GH_TOKEN` variables and use the login stored by `gh auth login` |
-| `--skip-tests`, `--yes`, `--dry-run` | skip the tests / skip confirmations / change nothing |
-
-**Login note.** A fine-grained personal access token in the `GITHUB_TOKEN` variable cannot create repositories on a personal account ("Resource not accessible by personal access token"). The script detects this up front and automatically uses your stored `gh auth login` credentials instead (it must have the `repo` scope). If you have none, run `set GITHUB_TOKEN=` and `gh auth login --web` once, or create the empty repository on github.com/new and run `publishme.bat --existing`.
-
 ---
 
 ## 5. Connecting clients
 
-The server reads `FEEDLY_ACCESS_TOKEN` / `FEEDLY_REFRESH_TOKEN` from its environment and, on Windows, falls back to the user environment in the registry, so client configs need no secrets and no `env` block. Easiest: run the wizard or `setup_claude.bat` / `setup_codex.bat`. Manual equivalents:
+The server reads `FEEDLY_ACCESS_TOKEN` / `FEEDLY_REFRESH_TOKEN` from its environment and, on Windows, falls back to the user environment in the registry, so client configs need no secrets and no `env` block. Easiest: run the wizard or `python scripts/setup_claude.py` / `python scripts/setup_codex.py`. Manual equivalents:
 
 ### Claude Desktop
 
@@ -480,7 +442,7 @@ Generated by the build and shipped inside the zip; it records:
 ## 9. Distribution
 
 ```bash
-build_distribution.bat            # or: .venv\Scripts\python scripts\build_distribution.py
+python scripts/build_distribution.py
 ```
 
 ### 9.1 What is in the zip
@@ -491,7 +453,6 @@ feedly-mcp-<version>/
 ├── feedly_mcp/             the MCP (Python source)
 ├── requirements.txt        the dependencies to install (mcp, httpx, pydantic, uvicorn)
 ├── scripts/                the six support scripts (all Python)
-├── *.bat                   launchers for the scripts
 ├── manifest.json  README.md  CHANGELOG.md  LICENSE  assets/
 ```
 
@@ -531,7 +492,7 @@ All checks must pass (the script fails otherwise); they run on the staged packag
 
 1. Extract the whole zip to a stable folder (the path is stored in the client configuration).
 2. Install Python 3.10 or newer if needed.
-3. Double-click `setup_wizard.bat`: step 1 installs the dependencies, then it saves the tokens and registers Claude Desktop / Codex. (Console equivalents: `install_dependencies.bat`, `set_feedly_token.bat`, `setup_claude.bat`, `setup_codex.bat`.)
+3. Run `python scripts/setup_wizard.py`: step 1 installs the dependencies, then it saves the tokens and registers Claude Desktop / Codex. (Console equivalents: `python scripts/install_dependencies.py`, `python scripts/set_feedly_token.py`, `python scripts/setup_claude.py`, `python scripts/setup_codex.py`.)
 4. Fully quit and restart the client.
 
 Check the download with the `.sha256` file (`certutil -hashfile <zip> SHA256`). Dependencies are downloaded by pip, so the target machine needs internet access (or a pip mirror) once.
@@ -563,7 +524,7 @@ Command line: `python feedly_mcp_server.py [--version] [--transport stdio|http] 
 
 ```bash
 .venv\Scripts\python tests\test_offline.py     # 12 tests: client, renewal, persistence, tools, HTTP auth
-.venv\Scripts\python tests\test_scripts.py     # 18 tests: setup scripts, Codex/Claude entries, launchers, version, requirements, build helpers
+.venv\Scripts\python tests\test_scripts.py     # setup scripts, Codex/Claude entries, version, requirements, build helpers
 .venv\Scripts\python scripts\setup_wizard.py --selftest    # the wizard UI builds headlessly
 ```
 
@@ -576,12 +537,12 @@ All tests are offline (mocked HTTP) and cannot change your real environment, log
 | Symptom | Cause / fix |
 |---------|-------------|
 | `Authentication failed. Check FEEDLY_ACCESS_TOKEN (and set FEEDLY_REFRESH_TOKEN ...)` | Token expired and no refresh token available: get a new pair at [https://feedly.com/v3/auth/dev](https://feedly.com/v3/auth/dev) |
-| `Token refresh failed (HTTP 400/401 ...)` | Refresh token expired or wrong: generate a new pair and save it with the wizard or `set_feedly_token.bat` |
+| `Token refresh failed (HTTP 400/401 ...)` | Refresh token expired or wrong: generate a new pair and save it with the wizard or `python scripts/set_feedly_token.py` |
 | `Access forbidden. Check your Feedly plan.` (403) | The feature needs a higher Feedly plan (e.g. `feedly_search_contents` needs Pro) |
 | `Rate limit exceeded` (429) | Wait and retry; reduce batch sizes |
 | `No module named 'mcp.server.fastmcp'` | Wrong `mcp` version in the local `.venv`: recreate it (`pip install -e .` pins `mcp<2`) |
 | `ModuleNotFoundError` (mcp, httpx, pydantic, uvicorn) or the client says the server failed to start | The Python in the client config lacks the dependencies: `python scripts/install_dependencies.py --check`, then `python scripts/install_dependencies.py --python <that python>` |
-| Client starts but the server has no token | Save the tokens with the wizard / `set_feedly_token.bat`, then fully quit and restart the client. The server also reads the user environment from the registry itself, so no `env` block or `env_vars` is needed |
+| Client starts but the server has no token | Save the tokens with the wizard / `python scripts/set_feedly_token.py`, then fully quit and restart the client. The server also reads the user environment from the registry itself, so no `env` block or `env_vars` is needed |
 | `persisted=FAILED` in the log | `scripts/set_feedly_token.py` is missing or blocked; the token still works in memory. Re-run the wizard |
 | Lists look cut off | Output cap of 100,000 characters: use `compact`, `limit`/`offset` or `continuation` |
 | HTTP: `401 unauthorized` | Missing or wrong `Authorization: Bearer <MCP_BEARER_TOKEN>` header |
